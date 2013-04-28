@@ -2,6 +2,7 @@
 #include <vector>
 #include <queue>
 #include <climits>
+#include <omp.h>
 
 using namespace std;
 
@@ -39,6 +40,8 @@ int main()
 	vector<position> dots;	// store the positions of food and snake
 
 	string input;
+#pragma omp parallel
+{
 	for(int i = 0;cin >> input;i++)
 	{
 		maze[i] = new int[width];
@@ -53,6 +56,7 @@ int main()
 				dots.insert(dots.begin(), position(i, index)); // insert the position of snake at first element
 		}
 	}
+}
 
 	unsigned **shortest = new unsigned* [dots.size()];
 	for(vector<position>::size_type index = 0;index != dots.size();index++)

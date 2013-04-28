@@ -3,7 +3,8 @@ CC=gcc
 CXX=g++
 DBG_CFLAGS= -D_DEBUG -g 
 OBJ=source.o
-CFLAGS= -fopenmp -pthread -fno-builtin -std=c++98  $(DBG_CFLAGS) 
+OMP_CFLAGS=#-fopenmp 
+CFLAGS= -pthread -fno-builtin -std=c++98  $(DBG_CFLAGS)  $(OMP_CFLAGS)
 CXXFLAGS= $(CFLAGS)
 
 all: $(OBJ)
