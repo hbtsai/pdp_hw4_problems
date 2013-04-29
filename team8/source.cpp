@@ -39,24 +39,31 @@ int main()
 	int **maze = new int*[width];
 	vector<position> dots;	// store the positions of food and snake
 
-	string input;
-#pragma omp parallel
-{
-	for(int i = 0;cin >> input;i++)
+	string input[width];
+	int i = 0;
+	for(i = 0; i<width; i++)
 	{
-		maze[i] = new int[width];
+		cin>>input[i];
+		maze[i]= new int[width];
+	}
+
+#pragma omp parallel for collapse(2) firstprivate(maze, input)
+	for(int i = 0;i<width;i++)
+	{
+		//maze[i] = new int[width];
 
 		// '1': wall, '0': road, '2': snake, '3': food
-		for(string::size_type index = 0;index != input.size();index++)
+		for(string::size_type index = 0;index < width;index++)
 		{
-			maze[i][index] = input[index] - '0';
-			if(input[index] == '3')
+			maze[i][index] = input[i][index] - '0';
+			if(input[i][index] == '3')
+#pragma omp critical
 				dots.push_back(position(i, index));
-			else if(input[index] == '2')
+			else if(input[i][index] == '2')
+#pragma omp critical
 				dots.insert(dots.begin(), position(i, index)); // insert the position of snake at first element
 		}
 	}
-}
 
 	unsigned **shortest = new unsigned* [dots.size()];
 	for(vector<position>::size_type index = 0;index != dots.size();index++)
@@ -79,9 +86,11 @@ int main()
 void findAllShortest(int **maze, unsigned width, const vector<position> &dots, unsigned **shortest)
 {
 	int posMapToIndex[width][width];
-	for(unsigned i = 0 ;i != width;i++)
-		for(unsigned j = 0;j != width;j++)
+#pragma omp parallel for collapse(2) 
+	for(unsigned i = 0 ;i < width;i++)
+		for(unsigned j = 0;j < width;j++)
 			posMapToIndex[i][j] = -1;
+
 	for(vector<position>::const_iterator dot = dots.begin();dot != dots.end();dot++)
 		posMapToIndex[dot->row][dot->col] = dot - dots.begin();
 
