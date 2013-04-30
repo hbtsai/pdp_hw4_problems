@@ -1,8 +1,15 @@
+#include <cstdio>
 #include <iostream>
 #include <vector>
 #include <queue>
 #include <climits>
 #include <omp.h>
+
+#if defined(_DEBUG)
+#define dprintf(fmt, ...) printf("%s():%d "fmt,__func__,__LINE__,##__VA_ARGS__)
+#else
+#define dprintf(fmt, ...)
+#endif
 
 using namespace std;
 
@@ -91,19 +98,31 @@ void findAllShortest(int **maze, unsigned width, const vector<position> &dots, u
 		for(unsigned j = 0;j < width;j++)
 			posMapToIndex[i][j] = -1;
 
-	for(vector<position>::const_iterator dot = dots.begin();dot != dots.end();dot++)
-		posMapToIndex[dot->row][dot->col] = dot - dots.begin();
-
-	for(vector<position>::const_iterator dot = dots.begin();dot != dots.end();dot++)
+	int dit= 0;
+	position dot;
+	unsigned int dotSize = (unsigned int)dots.size();
+	//vector<position>::const_iterator dot = dots.begin();
+#pragma omp parallel for private(dot)
+	for(dit = 0; dit<dotSize;dit++)
 	{
+		dot=dots.at(dit);
+		posMapToIndex[dot.row][dot.col] = dit;
+	}
+
+//	for(vector<position>::const_iterator dot = dots.begin();dot != dots.end();dot++)
+#pragma omp parallel for private(dot) firstprivate(maze)
+	for(dit=0; dit<dotSize; dit++)
+	{
+		dot=dots.at(dit);
 		unsigned tmpMaze[width][width];
+#pragma omp parallel for collapse(2) firstprivate(maze)
 		for(unsigned i = 0;i < width;i++)
 			for(unsigned j = 0;j < width;j++)
 				tmpMaze[i][j] = maze[i][j];
 		
 		queue<pos_distance> dotsQueue;
-		tmpMaze[dot->row][dot->col] = 1;
-		dotsQueue.push(pos_distance(*dot, 0));
+		tmpMaze[dot.row][dot.col] = 1;
+		dotsQueue.push(pos_distance(dot, 0));
 
 		while(!dotsQueue.empty())
 		{
@@ -113,7 +132,7 @@ void findAllShortest(int **maze, unsigned width, const vector<position> &dots, u
 
 			if(posMapToIndex[row][col] != -1) 
 			{
-				shortest[dot - dots.begin()][posMapToIndex[row][col]] = distance;
+				shortest[dit][posMapToIndex[row][col]] = distance;
 			}
 
 			if(((int)row - 1) >= 0 && tmpMaze[row - 1][col] != 1)
@@ -143,15 +162,48 @@ void findAllShortest(int **maze, unsigned width, const vector<position> &dots, u
 
 }
 
+int minValue(unsigned int* numList, unsigned int size)
+{
+	int i=0, minNum=UINT_MAX;
+	for(i=0; i<size; i++)
+	{
+		if(numList[i]==0)
+			break;
+		if(numList[i]<minNum )
+		{
+			minNum=numList[i];
+		}
+	}
+	return (minNum>0)?minNum:0;
+}
+
 unsigned TSP(unsigned **shortest, unsigned dotsNum)
 {
 	unsigned bestDistance = UINT_MAX;
 	bool *visited = new bool [dotsNum];
 	visited[0] = true;
-	for(unsigned i = 1;i != dotsNum;i++)
+	for(unsigned i = 1;i < dotsNum;i++)
 		visited[i] = false;
 	
 	TSP_recursive(shortest, 0, dotsNum, 0, bestDistance, visited, 1);
+
+	/*
+
+	int i= 0, j=0, sum=0;
+	for(i = 0; i<dotsNum; i++)
+	{
+		for(j=0; j<dotsNum;j++)
+		{
+			printf(" %d ", shortest[i][j]);
+			//printf("%d", minValue(shortest[i], dotsNum));
+		}
+printf("min: %d \n", minValue(shortest[i], dotsNum));
+	sum+=minValue(shortest[i], dotsNum);
+		printf("\n");
+	}
+	
+	dprintf("sum=%d\n", sum);
+	*/
 
 	delete [] visited;
 
@@ -166,7 +218,7 @@ void TSP_recursive(unsigned **shortest, unsigned nowDot, unsigned dotsNum, unsig
 		bestDistance = nowDistance;
 	}
 
-	for(unsigned i = 0;i != dotsNum;i++)
+	for(unsigned i = 0;i < dotsNum;i++)
 	{
 		if(!visited[i] && (nowDistance + shortest[nowDot][i] < bestDistance))
 		{

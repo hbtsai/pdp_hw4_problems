@@ -1,6 +1,6 @@
 EXEC=a.out
-CC=gcc
-CXX=g++
+CC=gcc-4.7
+CXX=g++-4.7
 DBG_CFLAGS= -D_DEBUG -g 
 OBJ=source.o
 OMP_CFLAGS=-fopenmp 
