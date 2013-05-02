@@ -83,7 +83,8 @@ class MODEL
 };
 
 
-double (*f_store)[3];
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+//double (*f_store)[3];
 double (*f_global)[3];
 
 int main()
@@ -302,16 +303,19 @@ void *force_thread(void *tdp)
               r2i= 1/r2;
               r6i= r2i*r2i*r2i;
               ff = r6i*(p0*r6i-p1)*r2i;
+				pthread_mutex_lock(&lock);
 				f_global[i][0]+= ff*xr[0];
 				f_global[i][1]+= ff*xr[1];
 				f_global[i][2]+= ff*xr[2];
+				/*
 				  f_store[i*npart+j][0]=ff*xr[0];
 				  f_store[i*npart+j][1]=ff*xr[1];
 				  f_store[i*npart+j][2]=ff*xr[2];
-				  /*
-                    f_global[i][k]+= ff*xr[k];
-                    f_global[j][k]-= ff*xr[k];  //Newton's 3rd law
-					*/
+				  */
+                    f_global[j][0]-= ff*xr[0];  //Newton's 3rd law
+                    f_global[j][1]-= ff*xr[1];  //Newton's 3rd law
+                    f_global[j][2]-= ff*xr[2];  //Newton's 3rd law
+				pthread_mutex_unlock(&lock);
               //the stress tensor
               rd->strs[0]+= ff*xr[0]*xr[0]; //xx in unit of kcal/mol
               rd->strs[1]+= ff*xr[1]*xr[1]; //yy
@@ -328,6 +332,7 @@ void *force_thread(void *tdp)
 //		dprintf("i=%d, Ep=%f\n", i, rd->Ep);
 	pthread_exit((void *)rd);
 }
+
 
 int MODEL::force()
 {  //The function determines the net force on each particle
@@ -349,10 +354,10 @@ int MODEL::force()
 
 	pthread_t *th_a=(pthread_t *)malloc(sizeof(pthread_t)*npart);
 
-	f_store = new double [npart*npart][3];
+	//f_store = new double [npart*npart][3];
 
 	Ep=0;
-	int max_thread=96;
+	int max_thread=16;
 	int thread_count=0;
 	int pt=0;
 	int pthread_ret=0;
@@ -409,6 +414,7 @@ int MODEL::force()
 	}
 	thread_count=0;
 
+	/*
 	for(i=0; i<npart; i++)
 	{
 		for(j=i+1; j<npart; j++)
@@ -418,9 +424,10 @@ int MODEL::force()
 			f_global[j][2]-=f_store[i*npart+j][2];
 		}
 	}
+	*/
 
 
-	delete [] f_store;
+//	delete [] f_store;
 	delete [] th_a;
     // consider atom j at origin, the force on atom i at some position r
     // fx = - dU/dx = -(dU/dr)(dr/dx)= - (x/r)(dU/dr)
@@ -465,7 +472,7 @@ int MODEL::force()
           }
     }
 	*/
-	dprintf("Ep=%f\n", Ep);
+	//dprintf("Ep=%f\n", Ep);
     return 0;
 }
 
