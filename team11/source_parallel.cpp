@@ -83,6 +83,9 @@ class MODEL
 };
 
 
+double (*f_store)[3];
+double (*f_global)[3];
+
 int main()
 {
                 
@@ -140,7 +143,7 @@ int MODEL::init()
     //allocation of memerory
     x=new double [npart][3];        //position in Angstrom
     v=new double [npart][3];         //velocity in Angstrom/ps
-    f=new double [npart][3];          //force in kcal/mol/A
+//    f=new double [npart][3];          //force in kcal/mol/A
     fm=new double [npart][3];        //force in next step
     m=new double [npart];             //mass in g/mo
 
@@ -156,7 +159,10 @@ int MODEL::init()
                double delta[3];
                int pps;
                pps = int(pow(npart,1.0/3.0)) + 1; // particles per side
-               for(k=0;k<3;k++)delta[k] = cell[k]/pps; //spacing of particles
+              // for(k=0;k<3;k++)delta[k] = cell[k]/pps; //spacing of particles
+			  delta[0] = cell[0]/pps;
+			  delta[1] = cell[1]/pps;
+			  delta[2] = cell[2]/pps;
                for(i=0;i<pps;i++) {
                  for(j=0;j<pps;j++) {
                    for(k=0;k<pps;k++) {
@@ -189,24 +195,37 @@ int MODEL::init()
     cmv[0]=cmv[1]=cmv[2]=sumv2=tmass=0;
     df= 3*npart; //degree of freedom 3N
 
-    for(i=0;i<npart;i++) {
+    for(i=0;i<npart;i++) 
+	{
         tmass += m[i]; //total mass
-        for(k=0;k<3;k++) {
-            v[i][k]= myrand01()-0.5; //random number between -0.5 and 0.5
-            cmv[k]+= m[i]*v[i][k];   //center of mass velocity
-            sumv2 += m[i]*v[i][k]*v[i][k];
-        }
+//        for(k=0;k<3;k++) {
+            v[i][0]= myrand01()-0.5; //random number between -0.5 and 0.5
+            cmv[0]+= m[i]*v[i][0];   //center of mass velocity
+            sumv2 += m[i]*v[i][0]*v[i][0];
+            v[i][1]= myrand01()-0.5; //random number between -0.5 and 0.5
+            cmv[1]+= m[i]*v[i][1];   //center of mass velocity
+            sumv2 += m[i]*v[i][1]*v[i][1];
+            v[i][2]= myrand01()-0.5; //random number between -0.5 and 0.5
+            cmv[2]+= m[i]*v[i][2];   //center of mass velocity
+            sumv2 += m[i]*v[i][2]*v[i][2];
+ //       }
     }
 
-    for(k=0;k<3;k++) { cmv[k]/=tmass; sumv2 -= tmass*cmv[k]*cmv[k]; }
+//    for(k=0;k<3;k++) { cmv[k]/=tmass; sumv2 -= tmass*cmv[k]*cmv[k]; }
+    cmv[0]/=tmass; sumv2 -= tmass*cmv[0]*cmv[0];
+    cmv[1]/=tmass; sumv2 -= tmass*cmv[1]*cmv[1];
+    cmv[2]/=tmass; sumv2 -= tmass*cmv[2]*cmv[2];
     Ti = sumv2/(df*8.314*0.1);
     fs = sqrt(Tset/Ti);  //scale factor
 
+#pragma omp parallel for
     for(i=0;i<npart;i++) {
-        for(k=0;k<3;k++) {
-            v[i][k]  = (v[i][k]-cmv[k]) *fs;  //initial velocity
-        }
+            v[i][0]  = (v[i][0]-cmv[0]) *fs;  //initial velocity
+            v[i][1]  = (v[i][1]-cmv[1]) *fs;  //initial velocity
+            v[i][2]  = (v[i][2]-cmv[2]) *fs;  //initial velocity
     }   
+
+	f_global = new double [npart][3];
 
     force();   //initial force calculation
 
@@ -232,9 +251,6 @@ struct thread_data
    double *cell;
 };
 
-double (*f_global)[3];
-pthread_mutex_t ep_lock = PTHREAD_MUTEX_INITIALIZER;
-
 void *force_thread(void *tdp)
 {
 	struct thread_data* td = (struct thread_data *)tdp;
@@ -257,18 +273,28 @@ void *force_thread(void *tdp)
     //for(i=0;i<npart;i++) {
         for(j=i+1;j<npart;j++) 
 		{
-            for(k=0;k<3;k++) 
-			{
-				xr[k]= x[i][k] - x[j][k];  //distance vector
-			}
+				xr[0]= x[i][0] - x[j][0];  //distance vector
+				xr[1]= x[i][1] - x[j][1];  //distance vector
+				xr[2]= x[i][2] - x[j][2];  //distance vector
               if(period) 
 			  { //periodic system, find dist within one cell
-                for(k=0;k<3;k++) {
-                  xr[k] += 0.5*cell[k]; //shift j to box center
-                  if(xr[k]<0) nbox = int( (xr[k]/cell[k]) -1); //determine image
-                    else nbox=int(xr[k]/cell[k]);
-                  xr[k] -= ( nbox+0.5)*cell[k]; //map to original box and shift
-                }
+				  /*
+                for(k=0;k<3;k++) 
+				{
+				*/
+                  xr[0] += 0.5*cell[0]; //shift j to box center
+                  if(xr[0]<0) nbox = int( (xr[0]/cell[0]) -1); //determine image
+                    else nbox=int(xr[0]/cell[0]);
+                  xr[0] -= ( nbox+0.5)*cell[0]; //map to original box and shift
+                  xr[1] += 0.5*cell[1]; //shift j to box center
+                  if(xr[1]<0) nbox = int( (xr[1]/cell[1]) -1); //determine image
+                    else nbox=int(xr[1]/cell[1]);
+                  xr[1] -= ( nbox+0.5)*cell[1]; //map to original box and shift
+                  xr[2] += 0.5*cell[2]; //shift j to box center
+                  if(xr[2]<0) nbox = int( (xr[2]/cell[2]) -1); //determine image
+                    else nbox=int(xr[2]/cell[2]);
+                  xr[2] -= ( nbox+0.5)*cell[2]; //map to original box and shift
+               // }
             }
 			  //dprintf("i=%d j=%d k=%d xr0=%f xr1=%f xr2=%f\n", i, j, k, xr[0], xr[1], xr[2]);
             r2= xr[0]*xr[0]+xr[1]*xr[1]+xr[2]*xr[2];   //distance squared
@@ -276,12 +302,16 @@ void *force_thread(void *tdp)
               r2i= 1/r2;
               r6i= r2i*r2i*r2i;
               ff = r6i*(p0*r6i-p1)*r2i;
-              for(k=0;k<3;k++) {
-				  pthread_mutex_lock(&ep_lock);
+				f_global[i][0]+= ff*xr[0];
+				f_global[i][1]+= ff*xr[1];
+				f_global[i][2]+= ff*xr[2];
+				  f_store[i*npart+j][0]=ff*xr[0];
+				  f_store[i*npart+j][1]=ff*xr[1];
+				  f_store[i*npart+j][2]=ff*xr[2];
+				  /*
                     f_global[i][k]+= ff*xr[k];
                     f_global[j][k]-= ff*xr[k];  //Newton's 3rd law
-				  pthread_mutex_unlock(&ep_lock);
-              }
+					*/
               //the stress tensor
               rd->strs[0]+= ff*xr[0]*xr[0]; //xx in unit of kcal/mol
               rd->strs[1]+= ff*xr[1]*xr[1]; //yy
@@ -309,16 +339,17 @@ int MODEL::force()
 	pthread_attr_setstacksize(&pattr, PTHREAD_STACK_MIN);
 
     int i,j,k;
+	/*
     for(i=0;i<npart;i++) {
         for(k=0;k<3;k++) f[i][k]=0;   //set forces to zero
     }
+	*/
+	memset(f_global, 0, sizeof(double)*npart*3);
     for(i=0;i<6;i++) strs[i]=0; //set stress to zero
 
 	pthread_t *th_a=(pthread_t *)malloc(sizeof(pthread_t)*npart);
 
-
-	f_global = new double [npart][3];
-	memcpy(f_global, f, sizeof(double)*npart*3);
+	f_store = new double [npart*npart][3];
 
 	Ep=0;
 	int max_thread=96;
@@ -349,6 +380,7 @@ int MODEL::force()
     		    strs[3]+= rd->strs[3]; //xy
     		    strs[4]+= rd->strs[4]; //xz
     		    strs[5]+= rd->strs[5]; //yz
+				free(rd);
 			}
 			thread_count=0;
 		}
@@ -373,12 +405,23 @@ int MODEL::force()
         strs[3]+= rd->strs[3]; //xy
         strs[4]+= rd->strs[4]; //xz
         strs[5]+= rd->strs[5]; //yz
+	free(rd);
 	}
 	thread_count=0;
-	free(rd);
-	memcpy(f, f_global, sizeof(double)*npart*3);
 
-	dprintf("checkpoint\n");
+	for(i=0; i<npart; i++)
+	{
+		for(j=i+1; j<npart; j++)
+		{
+			f_global[j][0]-=f_store[i*npart+j][0];
+			f_global[j][1]-=f_store[i*npart+j][1];
+			f_global[j][2]-=f_store[i*npart+j][2];
+		}
+	}
+
+
+	delete [] f_store;
+	delete [] th_a;
     // consider atom j at origin, the force on atom i at some position r
     // fx = - dU/dx = -(dU/dr)(dr/dx)= - (x/r)(dU/dr)
     // U = Do ( (Ro/r)^12 - 2 (Ro/r)^6) )
@@ -431,28 +474,23 @@ int MODEL::integrate()
 
     int i,k;
     //double xx,*pv;
+#pragma omp parallel for
     for(i=0;i<npart;i++) {
-        for(k=0;k<3;k++) {
            // force in kcal/mol/A, mass in g/mol, x in A, dt in ps, v in A/ps
-           x[i][k] +=  v[i][k]*dt + f[i][k]*dt*dt*418.4/(2*m[i]);
-           fm[i][k]= f[i][k];
-        }
+           x[i][0] +=  v[i][0]*dt + f_global[i][0]*dt*dt*418.4/(2*m[i]);
+           fm[i][0]= f_global[i][0];
+           x[i][1] +=  v[i][1]*dt + f_global[i][1]*dt*dt*418.4/(2*m[i]);
+           fm[i][1]= f_global[i][1];
+           x[i][2] +=  v[i][2]*dt + f_global[i][2]*dt*dt*418.4/(2*m[i]);
+           fm[i][2]= f_global[i][2];
 
     }
-	double sum=0;
-	for(i=0; i<npart; i++)
-	{
-		for(k=0; k<3; k++)
-		{
-			sum+=f[i][k];
-		}
-	}
-	dprintf("sum of f = %f\n", sum);
     force();
+#pragma omp parallel for
     for(i=0;i<npart;i++) {
-        for(k=0;k<3;k++) {
-           v[i][k] += (f[i][k]+fm[i][k])*dt*418.4/(2*m[i]);
-        }
+           v[i][0] += (f_global[i][0]+fm[i][0])*dt*418.4/(2*m[i]);
+           v[i][1] += (f_global[i][1]+fm[i][1])*dt*418.4/(2*m[i]);
+           v[i][2] += (f_global[i][2]+fm[i][2])*dt*418.4/(2*m[i]);
     }
     istep++;    //current step
     t=istep*dt; //current time in ps
@@ -556,7 +594,8 @@ MODEL::MODEL()
 {
     delete [] x;
     delete [] v;
-    delete [] f;
+	delete [] f_global;
+//    delete [] f;
     delete [] m;
     delete [] fm;
 
